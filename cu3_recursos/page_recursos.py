@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from auth.roles import requiere_rol
-from cu3_recursos import model_proveedor, model_recurso, model_asignacion, model_orden_compra
+from cu3_recursos import model_proveedor, model_recurso, model_asignacion, model_calificacion
 from cu2_planificacion import model_evento
 from shared.utils import format_currency
 
 def show():
     requiere_rol(['Administrador', 'Jefe de Logística'])
     st.title("📦 Gestión de Recursos y Proveedores")
-    tab1, tab2, tab3, tab4 = st.tabs(["🏢 Proveedores", "📦 Recursos", "🔗 Asignaciones", "🛒 Órdenes de Compra"])
+    tab1, tab2, tab3 = st.tabs(["🏢 Proveedores", "📦 Recursos", "🔗 Asignaciones"])
 
     # ── TAB 1: Proveedores ────────────────────────────────────
     with tab1:
@@ -56,7 +56,7 @@ def show():
     with tab2:
         rows_r = model_recurso.get_all()
         if rows_r:
-            df_r = pd.DataFrame(rows_r, columns=["ID","Nombre","Tipo","Cantidad","Estado","Proveedor"])
+            df_r = pd.DataFrame(rows_r, columns=["ID","Nombre","Tipo","Cantidad","Disponible","Estado","Proveedor"])
             st.dataframe(df_r, use_container_width=True)
 
         col_a, col_b = st.columns(2)
@@ -99,11 +99,11 @@ def show():
             st.dataframe(df_a, use_container_width=True)
 
         eventos_act = model_evento.get_activos()
-        recursos_disp = [r for r in model_recurso.get_all() if r[4] == 'Disponible']
+        recursos_disp = [r for r in model_recurso.get_all() if r[5] == 'Disponible']
 
         if eventos_act and recursos_disp:
             ev_op_a  = {f"{e[1]} (ID:{e[0]})": e[0] for e in eventos_act}
-            rec_op_a = {f"{r[1]} - Cant:{r[3]} (ID:{r[0]})": r[0] for r in recursos_disp}
+            rec_op_a = {f"{r[1]} - Disp:{r[4]} (ID:{r[0]})": r[0] for r in recursos_disp}
 
             with st.form("form_asignacion"):
                 st.subheader("Nueva Asignación")
@@ -119,66 +119,21 @@ def show():
                         st.success("Asignación confirmada y recurso marcado como Asignado.")
                         st.rerun()
 
-    # ── TAB 4: Órdenes de Compra ──────────────────────────────
-    with tab4:
-        rows_oc = model_orden_compra.get_all()
-        if rows_oc:
-            df_oc = pd.DataFrame(rows_oc, columns=["ID","Evento","Proveedor","Recurso","Fecha","Estado","Monto"])
-            df_oc["Monto"] = df_oc["Monto"].apply(format_currency)
-            st.dataframe(df_oc, use_container_width=True)
+            st.subheader("Proveedores ordenados por calificación")
+            ranking = model_calificacion.get_ranking_proveedores()
+            if ranking:
+                df_rank = pd.DataFrame(ranking, columns=["Proveedor","Promedio","Calificaciones"])
+                st.dataframe(df_rank, use_container_width=True)
 
-        st.subheader("Gestionar Orden de Compra")
-        id_oc = st.number_input("ID de la OC", min_value=1, step=1)
-        oc = model_orden_compra.get_by_id(int(id_oc))
-        if oc:
-            (oc_id, oc_ev, oc_prov, oc_rec, oc_cot, oc_fecha, oc_est, oc_monto) = oc
-            st.info(f"Estado: **{oc_est}** | Monto: {format_currency(oc_monto)}")
-            col1, col2, col3, col4 = st.columns(4)
-            if oc_est == 'Pendiente':
-                if col1.button("🔍 Enviar a Revisión"):
-                    model_orden_compra.cambiar_estado(oc_id, 'En Revisión')
-                    st.rerun()
-            if oc_est == 'En Revisión':
-                if col2.button("✅ Aprobar OC"):
-                    model_orden_compra.cambiar_estado(oc_id, 'Aprobada')
-                    st.success("OC Aprobada. Se notificará al proveedor.")
-                    st.rerun()
-                if col3.button("❌ Rechazar OC"):
-                    model_orden_compra.cambiar_estado(oc_id, 'Rechazada')
-                    st.warning("OC Rechazada.")
-                    st.rerun()
-            if oc_est == 'Aprobada':
-                if col4.button("📤 Enviar al Proveedor"):
-                    model_orden_compra.cambiar_estado(oc_id, 'Enviada')
-                    st.success("OC enviada al proveedor.")
-                    st.rerun()
-            if oc_est == 'Enviada':
-                if st.button("📥 Confirmar Recepción"):
-                    model_orden_compra.cambiar_estado(oc_id, 'Recibida')
-                    st.success("Recepción confirmada.")
-                    st.rerun()
+            with st.form("form_devolucion"):
+                st.subheader("Devolución de Recurso y Calificación")
+                id_asig = st.number_input("ID de la asignación", min_value=1, step=1)
+                calif   = st.slider("Calificación del proveedor (1-10)", 1, 10, 5)
+                if st.form_submit_button("Registrar devolución"):
+                    if model_asignacion.devolver(int(id_asig)):
+                        id_prov = model_calificacion.resolve_proveedor_for_asignacion(int(id_asig))
+                        if id_prov:
+                            if model_calificacion.create(id_prov, int(id_asig), int(calif), date.today()):
+                                st.success("Devolución registrada, estado actualizado y calificación guardada.")
+                                st.rerun()
 
-        st.divider()
-        eventos_oc = model_evento.get_activos()
-        proveedores_oc = model_proveedor.get_all()
-        recursos_oc = model_recurso.get_all()
-        if eventos_oc and proveedores_oc and recursos_oc:
-            ev_op_oc  = {f"{e[1]} (ID:{e[0]})": e[0] for e in eventos_oc}
-            prov_op_oc = {f"{p[1]} (ID:{p[0]})": p[0] for p in proveedores_oc}
-            rec_op_oc  = {f"{r[1]} (ID:{r[0]})": r[0] for r in recursos_oc}
-            with st.form("form_nueva_oc"):
-                st.subheader("Nueva Orden de Compra")
-                ev_sel_oc   = st.selectbox("Evento", list(ev_op_oc.keys()))
-                prov_sel_oc = st.selectbox("Proveedor", list(prov_op_oc.keys()))
-                rec_sel_oc  = st.selectbox("Recurso", list(rec_op_oc.keys()))
-                fecha_oc    = st.date_input("Fecha", value=date.today())
-                monto_oc    = st.number_input("Monto S/", min_value=0.0)
-                cot_ref     = st.number_input("ID Cotización (opcional, 0=sin cotización)", min_value=0, step=1)
-                if st.form_submit_button("Crear Orden de Compra"):
-                    id_cot_ref = int(cot_ref) if cot_ref > 0 else None
-                    if model_orden_compra.create(
-                        ev_op_oc[ev_sel_oc], prov_op_oc[prov_sel_oc],
-                        rec_op_oc[rec_sel_oc], id_cot_ref, fecha_oc, monto_oc
-                    ):
-                        st.success("Orden de Compra creada.")
-                        st.rerun()

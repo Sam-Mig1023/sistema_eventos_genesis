@@ -8,7 +8,7 @@ ESTADOS_RECURSO = ['Disponible', 'Asignado', 'No Disponible', 'Mantenimiento']
 def get_all():
     try:
         return execute_query(
-            """SELECT r.id_recurso, r.nombre, r.tipo_recurso, r.cantidad, r.estado,
+            """SELECT r.id_recurso, r.nombre, r.tipo_recurso, r.cantidad, r.cantidad_disponible, r.estado,
                       COALESCE(p.nombre,'—') AS proveedor
                FROM recursos r LEFT JOIN proveedores p ON r.id_proveedor=p.id_proveedor
                ORDER BY r.id_recurso"""
@@ -30,7 +30,7 @@ def get_by_id(id_recurso):
 def get_disponibles_por_tipo(tipo_recurso):
     try:
         return execute_query(
-            "SELECT id_recurso, nombre, tipo_recurso, cantidad FROM recursos WHERE estado='Disponible' AND tipo_recurso=%s",
+            "SELECT id_recurso, nombre, tipo_recurso, cantidad, cantidad_disponible FROM recursos WHERE estado='Disponible' AND tipo_recurso=%s AND cantidad_disponible > 0",
             (tipo_recurso,)
         ) or []
     except psycopg2.Error as e:
@@ -40,8 +40,8 @@ def get_disponibles_por_tipo(tipo_recurso):
 def create(nombre, tipo_recurso, cantidad, estado, id_proveedor=None):
     try:
         execute_insert(
-            "INSERT INTO recursos (nombre, tipo_recurso, cantidad, estado, id_proveedor) VALUES (%s,%s,%s,%s,%s)",
-            (nombre, tipo_recurso, cantidad, estado, id_proveedor)
+            "INSERT INTO recursos (nombre, tipo_recurso, cantidad, cantidad_disponible, estado, id_proveedor) VALUES (%s,%s,%s,%s,%s,%s)",
+            (nombre, tipo_recurso, cantidad, cantidad, estado, id_proveedor)
         )
         return True
     except psycopg2.Error as e:

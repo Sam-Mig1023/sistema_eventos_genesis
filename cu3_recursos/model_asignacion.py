@@ -70,3 +70,17 @@ def update(id_asignacion, cantidad, fecha_asignacion, estado):
 
 def delete(id_asignacion):
     return cambiar_estado(id_asignacion, 'Cancelada')
+
+def devolver(id_asignacion):
+    try:
+        row = get_by_id(id_asignacion)
+        if not row:
+            return False
+        execute_insert(
+            "UPDATE asignacion_recurso SET cantidad=0, estado='Cancelada' WHERE id_asignacion=%s",
+            (id_asignacion,)
+        )
+        return True
+    except psycopg2.Error as e:
+        st.error(f"Error: {e}")
+        return False
