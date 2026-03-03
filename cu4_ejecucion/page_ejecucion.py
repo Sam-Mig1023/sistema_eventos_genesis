@@ -433,48 +433,58 @@ def _tab_encuestas():
 def _generar_pdf_incidencias(id_evento, nombre_evento, incidencias):
     """Genera un reporte PDF de las incidencias de un evento."""
     pdf = FPDF()
+    pdf.set_margins(15, 15, 15)
     pdf.add_page()
 
+    lm = pdf.l_margin  # margen izquierdo
+    pw = pdf.w - pdf.l_margin - pdf.r_margin  # ancho útil
+
     # Título
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Reporte de Incidencias", ln=True, align="C")
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_x(lm)
+    pdf.cell(pw, 10, "Reporte de Incidencias", ln=True, align="C")
     pdf.ln(4)
 
     # Info del evento
-    pdf.set_font("Arial", size=11)
-    pdf.cell(0, 7, f"Evento: {nombre_evento}", ln=True)
-    pdf.cell(0, 7, f"Fecha de generacion: {date.today().strftime('%d/%m/%Y')}", ln=True)
-    pdf.cell(0, 7, f"Total de incidencias: {len(incidencias)}", ln=True)
+    pdf.set_font("Helvetica", size=11)
+    pdf.set_x(lm)
+    pdf.cell(pw, 7, f"Evento: {nombre_evento}", ln=True)
+    pdf.set_x(lm)
+    pdf.cell(pw, 7, f"Fecha de generacion: {date.today().strftime('%d/%m/%Y')}", ln=True)
+    pdf.set_x(lm)
+    pdf.cell(pw, 7, f"Total de incidencias: {len(incidencias)}", ln=True)
     pdf.ln(4)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 7, "=" * 70, ln=True)
-    pdf.ln(2)
+
+    # Separador
+    pdf.line(lm, pdf.get_y(), lm + pw, pdf.get_y())
+    pdf.ln(4)
 
     for row in incidencias:
         inc_id, tipo, desc, fecha, estado = row
 
         # Cabecera de incidencia
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, 7, f"Incidencia #{inc_id}  |  Tipo: {tipo}  |  Estado: {estado}", ln=True)
-        pdf.set_font("Arial", size=10)
-        pdf.cell(0, 6, f"Fecha: {fecha}", ln=True)
-        pdf.multi_cell(0, 6, f"Descripcion: {desc}")
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_x(lm)
+        pdf.cell(pw, 7, f"Incidencia #{inc_id}  |  Tipo: {tipo}  |  Estado: {estado}", ln=True)
+        pdf.set_font("Helvetica", size=10)
+        pdf.set_x(lm)
+        pdf.cell(pw, 6, f"Fecha: {fecha}", ln=True)
+        pdf.set_x(lm)
+        pdf.multi_cell(pw, 6, f"Descripcion: {desc}")
 
         # Detalles de la incidencia
         detalles = model_incidencia.get_detalles(inc_id)
         if detalles:
-            pdf.set_font("Arial", "I", 9)
+            pdf.set_font("Helvetica", "", 9)
             for det in detalles:
-                pdf.multi_cell(0, 5, f"  - Detalle: {det[1]}")
+                pdf.set_x(lm)
+                pdf.multi_cell(pw, 5, f"  - Detalle: {det[1]}")
                 if det[2]:
-                    pdf.multi_cell(0, 5, f"    Accion tomada: {det[2]}")
+                    pdf.set_x(lm)
+                    pdf.multi_cell(pw, 5, f"    Accion tomada: {det[2]}")
 
         pdf.ln(3)
-        pdf.set_font("Arial", size=8)
-        pdf.cell(0, 4, "-" * 70, ln=True)
-        pdf.ln(2)
+        pdf.line(lm, pdf.get_y(), lm + pw, pdf.get_y())
+        pdf.ln(4)
 
-    pdf_output = pdf.output(dest="S")
-    if isinstance(pdf_output, str):
-        return pdf_output.encode("latin-1")
-    return bytes(pdf_output)
+    return bytes(pdf.output())

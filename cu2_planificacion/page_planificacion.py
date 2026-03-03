@@ -190,7 +190,8 @@ def show():
                             pdf.set_font("Arial", size=12)
                             for line in (desc_val or "").splitlines():
                                 pdf.multi_cell(0, 8, line)
-                            pdf_bytes = pdf.output(dest="S").encode("latin-1")
+                            pdf_raw = pdf.output(dest="S")
+                            pdf_bytes = pdf_raw.encode("latin-1") if isinstance(pdf_raw, str) else bytes(pdf_raw)
                             c3.download_button("Exportar PDF", data=pdf_bytes, file_name=f"Plan_{row[0]}.pdf", mime="application/pdf")
                             if st.button("Cerrar", key=f"plan_desc_close_{row[0]}"):
                                 st.session_state.pop(f"plan_row_showing_{row[0]}", None)
