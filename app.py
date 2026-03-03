@@ -46,13 +46,13 @@ with st.sidebar:
     if rol == "Administrador":
         menu_base["🔧 Administración"] = "admin"
     elif rol == "Jefe de Eventos":
-        allowed = {"📊 Dashboard", "👥 Clientes", "📄 Contratos", "📋 Planificación", "🚀 Ejecución y Cierre"}
+        allowed = {"📊 Dashboard", "🚀 Ejecución y Cierre"}
         menu_base = {k: v for k, v in menu_base.items() if k in allowed}
     elif rol == "Jefe de Planificación":
         allowed = {"📊 Dashboard", "📋 Planificación"}
         menu_base = {k: v for k, v in menu_base.items() if k in allowed}
     elif rol == "Jefe de Logística":
-        allowed = {"📊 Dashboard", "📦 Recursos y Proveedores", "🚀 Ejecución y Cierre"}
+        allowed = {"📊 Dashboard", "📦 Recursos y Proveedores"}
         menu_base = {k: v for k, v in menu_base.items() if k in allowed}
     elif rol == "Secretaria de Eventos":
         # La Secretaria solo ve Dashboard y su módulo propio (CU1 completo):
