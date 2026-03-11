@@ -4,7 +4,7 @@ from datetime import date
 from auth.roles import requiere_rol
 from cu3_recursos import model_proveedor, model_recurso, model_asignacion, model_calificacion
 from cu2_planificacion import model_evento
-from shared.utils import format_currency
+from shared.utils import format_currency, exportar_pdf
 
 def show():
     requiere_rol(['Administrador', 'Jefe de Logística'])
@@ -16,7 +16,16 @@ def show():
         rows_p = model_proveedor.get_all()
         if rows_p:
             df_p = pd.DataFrame(rows_p, columns=["ID","Nombre","Tipo Servicio","Disponible","Email","Teléfono"])
+            
+            # Estadísticas de Proveedores
+            st.subheader("📊 Estadísticas de Proveedores")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Proveedores", len(df_p))
+            c2.metric("Disponibles", len(df_p[df_p["Disponible"] == True]))
+            c3.metric("Tipos de Servicio", df_p["Tipo Servicio"].nunique())
+            
             st.dataframe(df_p, use_container_width=True)
+            exportar_pdf("Listado de Proveedores", df_p.columns.tolist(), rows_p, "proveedores.pdf")
         else:
             st.info("No hay proveedores.")
 
@@ -57,7 +66,17 @@ def show():
         rows_r = model_recurso.get_all()
         if rows_r:
             df_r = pd.DataFrame(rows_r, columns=["ID","Nombre","Tipo","Cantidad","Disponible","Estado","Proveedor"])
+            
+            # Estadísticas de Recursos
+            st.subheader("📊 Estadísticas de Recursos")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Items", len(df_r))
+            c2.metric("Stock Total", f"{int(df_r['Cantidad'].sum()):,}")
+            c3.metric("Stock Disponible", f"{int(df_r['Disponible'].sum()):,}")
+            c4.metric("Tipos Únicos", df_r["Tipo"].nunique())
+            
             st.dataframe(df_r, use_container_width=True)
+            exportar_pdf("Listado de Recursos", df_r.columns.tolist(), rows_r, "recursos.pdf")
 
         col_a, col_b = st.columns(2)
         proveedores = model_proveedor.get_all()
@@ -96,7 +115,17 @@ def show():
         rows_a = model_asignacion.get_all()
         if rows_a:
             df_a = pd.DataFrame(rows_a, columns=["ID","Evento","Recurso","Cantidad","Fecha Asig.","Estado"])
+            
+            # Estadísticas de Asignaciones
+            st.subheader("📊 Estadísticas de Asignaciones")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Asignaciones", len(df_a))
+            c2.metric("Items Asignados", f"{int(df_a['Cantidad'].sum()):,}")
+            c3.metric("Promedio Cantidad", f"{df_a['Cantidad'].mean():.1f}")
+            c4.metric("Máx. Asignado", f"{int(df_a['Cantidad'].max()):,}")
+            
             st.dataframe(df_a, use_container_width=True)
+            exportar_pdf("Listado de Asignaciones", df_a.columns.tolist(), rows_a, "asignaciones.pdf")
 
         eventos_act = model_evento.get_activos()
         recursos_disp = [r for r in model_recurso.get_all() if r[5] == 'Disponible']
@@ -124,6 +153,7 @@ def show():
             if ranking:
                 df_rank = pd.DataFrame(ranking, columns=["Proveedor","Promedio","Calificaciones"])
                 st.dataframe(df_rank, use_container_width=True)
+                exportar_pdf("Proveedores ordenados por calificación", df_rank.columns.tolist(), ranking, "ranking_proveedores.pdf")
 
             with st.form("form_devolucion"):
                 st.subheader("Devolución de Recurso y Calificación")

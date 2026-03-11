@@ -7,7 +7,7 @@ from fpdf import FPDF
 from auth.roles import requiere_rol, check_rol
 from cu2_planificacion import model_evento, model_plan_evento, model_requerimiento, model_cotizacion
 from cu3_recursos import model_proveedor, model_recurso, model_orden_compra
-from shared.utils import format_currency
+from shared.utils import format_currency, exportar_pdf
 
 # ══════════════════════════════════════════════════════════════════
 #  CSS SCOPED — Solo afecta al div#planificacion-page
@@ -987,6 +987,65 @@ def show():
             ev_fr  = [e for e in ev_r if ev_br.strip().lower() in str(e[1]).lower()] if ev_br else ev_r
             id_ev_r=None; nom_ev_r=None
             if not ev_fr: st.info("No se encontraron eventos.")
+            ev_op_r = {f"{e[1]} (ID:{e[0]})": e[0] for e in eventos_r}
+            ev_sel_r = st.selectbox("Evento", list(ev_op_r.keys()), key="req_ev_sel")
+            id_ev_r  = ev_op_r[ev_sel_r]
+
+            reqs = model_requerimiento.get_by_evento(id_ev_r)
+            if reqs:
+                st.subheader("Requerimientos registrados")
+                df_req = pd.DataFrame(reqs, columns=["ID", "Descripción", "Tipo", "Cantidad"])
+                st.dataframe(df_req, use_container_width=True)
+                exportar_pdf(f"Requerimientos - Evento {id_ev_r}", df_req.columns.tolist(), reqs, f"requerimientos_evento_{id_ev_r}.pdf")
+                
+                st.divider()
+                hdr_r = st.columns([1, 5, 2, 2, 2])
+                hdr_r[0].markdown("**ID**")
+                hdr_r[1].markdown("**Descripción**")
+                hdr_r[2].markdown("**Tipo**")
+                hdr_r[3].markdown("**Cantidad**")
+                hdr_r[4].markdown("**Acciones**")
+                for req in reqs:
+                    rid, rdesc, rtipo, rcant = req
+                    cols_r = st.columns([1, 5, 2, 2, 2])
+                    cols_r[0].write(str(rid))
+                    cols_r[1].write(str(rdesc))
+                    cols_r[2].write(str(rtipo))
+                    cols_r[3].write(str(rcant))
+                    ac1, ac2 = cols_r[4].columns(2)
+                    if ac1.button("✏️ Editar", key=f"req_row_edit_{rid}"):
+                        st.session_state[f"req_row_editing_{rid}"] = True
+                        st.session_state[f"req_row_desc_{rid}"] = rdesc or ""
+                        st.session_state[f"req_row_tipo_{rid}"] = rtipo
+                        st.session_state[f"req_row_cant_{rid}"] = int(rcant)
+                        st.rerun()
+                    if ac2.button("🗑️ Eliminar", key=f"req_row_delete_{rid}"):
+                        if model_requerimiento.delete(rid):
+                            st.success("Requerimiento eliminado.")
+                            st.rerun()
+                    if st.session_state.get(f"req_row_editing_{rid}", False):
+                        with st.expander(f"Editar Requerimiento ID {rid}", expanded=True):
+                            e1, e2 = st.columns(2)
+                            desc_new = e1.text_input("Descripción", value=st.session_state.get(f"req_row_desc_{rid}", rdesc or ""), key=f"req_row_desc_input_{rid}")
+                            tipos = model_requerimiento.TIPOS_RECURSO
+                            idx_t = tipos.index(st.session_state.get(f"req_row_tipo_{rid}", rtipo)) if st.session_state.get(f"req_row_tipo_{rid}", rtipo) in tipos else 0
+                            tipo_new = e2.selectbox("Tipo", tipos, index=idx_t, key=f"req_row_tipo_input_{rid}")
+                            cant_new = st.number_input("Cantidad", min_value=1, step=1, value=st.session_state.get(f"req_row_cant_{rid}", int(rcant)), key=f"req_row_cant_input_{rid}")
+                            if st.button("Guardar cambios", key=f"req_row_save_{rid}"):
+                                if model_requerimiento.update(rid, desc_new, tipo_new, int(cant_new)):
+                                    st.success("Requerimiento actualizado.")
+                                    st.session_state.pop(f"req_row_editing_{rid}", None)
+                                    st.rerun()
+
+                # Verificar disponibilidad
+                st.subheader("Verificar Disponibilidad Interna")
+                for req in reqs:
+                    disponibles = model_recurso.get_disponibles_por_tipo(req[2])
+                    total_disp = sum(int(r[3]) for r in disponibles)
+                    if total_disp >= req[3]:
+                        st.success(f"✅ {req[1]}: {total_disp} disponibles (necesita {req[3]})")
+                    else:
+                        st.warning(f"⚠️ {req[1]}: solo {total_disp} disponibles (necesita {req[3]}) — considerar cotización")
             else:
                 lc,rc=st.columns([4,1],vertical_alignment="bottom")
                 ev_sr=lc.selectbox("Evento",ev_fr,format_func=lambda e:e[1],key="rq_ev_s",label_visibility="collapsed")
